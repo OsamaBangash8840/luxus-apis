@@ -10,7 +10,6 @@ const path = require('path');
 const cors = require('cors');
 require('dotenv').config();
 
-const PORT = process.env.PORT || 8000;
 const app = express();
 
 // Middleware
@@ -26,7 +25,6 @@ app.use('/api', propertyRoutes);
 app.use('/api', categoryRoutes);
 app.use('/api', tourRoutes);
 app.use('/api', reviewRoute);
-
 
 app.get('/', (req, res) => {
   res.send('Hello, world!');
@@ -48,7 +46,7 @@ const upload = multer({ storage });
 app.post('/api/upload', upload.array('files'), (req, res) => {
   try {
     const uploadedImageUrls = req.files.map(file => {
-      return { imageUrl: `http://localhost:${PORT}/uploads/${file.filename}` }; // Correct public URL
+      return { imageUrl: `/uploads/${file.filename}` }; // Use relative URLs
     });
     res.status(200).json(uploadedImageUrls);
   } catch (err) {
@@ -60,7 +58,5 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
 // Serve static files from 'uploads' directory
 app.use('/uploads', express.static('uploads'));
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`API IS RUNNING ON PORT ${PORT}`);
-});
+// Export app
+module.exports = app;
