@@ -1,3 +1,4 @@
+// server.js (Express)
 const express = require('express');
 const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
@@ -5,6 +6,8 @@ const propertyRoutes = require('./routes/propertyRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const tourRoutes = require('./routes/schedulaTourRoutes');
 const reviewRoute = require('./routes/reviewsRoutes');
+const contactForm = require('./routes/contactForm');
+const PORT = 8000 || process.env.PORT
 const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
@@ -25,38 +28,53 @@ app.use('/api', propertyRoutes);
 app.use('/api', categoryRoutes);
 app.use('/api', tourRoutes);
 app.use('/api', reviewRoute);
+app.use('/api', contactForm)
+
 
 app.get('/', (req, res) => {
   res.send('Hello, world!');
 });
 
 // Multer setup for file uploads
+// Configure Multer storage
+// Set up storage configuration with multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // Save files to 'uploads' directory
+    cb(null, 'uploads/'); // Ensure the 'uploads/' directory exists
   },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + path.extname(file.originalname)); // Name the file uniquely with timestamp
-  }
+    cb(null, Date.now() + path.extname(file.originalname)); // Name file with timestamp and extension
+  },
 });
 
-const upload = multer({ storage });
-
-// Upload route
-app.post('/api/upload', upload.array('files'), (req, res) => {
-  try {
-    const uploadedImageUrls = req.files.map(file => {
-      return { imageUrl: `/uploads/${file.filename}` }; // Use relative URLs
-    });
-    res.status(200).json(uploadedImageUrls);
-  } catch (err) {
-    console.error('Error uploading images:', err);
-    res.status(500).send({ error: 'Failed to upload images' });
-  }
-});
+// Initialize multer with the storage configuration
+const upload = multer({ dest: 'uploads/' });
 
 // Serve static files from 'uploads' directory
 app.use('/uploads', express.static('uploads'));
+
+// Upload route to handle file upload
+app.post('/api/upload', upload.array('files'), (req, res) => {
+  console.log('Files received:', req.files); // Should print files details
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ error: 'No files uploaded' });
+  }
+
+  try {
+    const uploadedImageUrls = req.files.map((file) => ({
+      imageUrl: `/uploads/${file.filename}`,
+    }));
+
+    res.status(200).json(uploadedImageUrls);
+  } catch (err) {
+    console.error('Error processing files:', err);
+    res.status(500).json({ error: 'Failed to process uploaded files' });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log("API IS RUNNING ON 8000")
+})
 
 // Export app
 module.exports = app;

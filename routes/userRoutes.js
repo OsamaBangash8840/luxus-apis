@@ -1,6 +1,7 @@
+// routes/userRoutes.js
 const router = require("express").Router();
 const User = require("../models/User");
-const { regValidation } = require("./validation")
+const { regValidation } = require("./validation");
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -8,14 +9,15 @@ const verifyToken = require('./verifyToken');
 const { Property } = require("../models/Property");
 require('dotenv').config();
 
+const tokenSecret = process.env.TOKEN_SECRET;
+
 router.post('/register', async (req, res) => {
-    const { name, email, password, address } = req.body;
+    const { name, email, password } = req.body;
     const { error } = regValidation(req.body);
     if (error) return res.send(error.details[0].message);
 
-    const usedEmail = await User.findOne({ email: req.body.email })
+    const usedEmail = await User.findOne({ email: req.body.email });
     if (usedEmail) return res.status(400).send("Email is already Registered");
-
 
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
@@ -24,42 +26,33 @@ router.post('/register', async (req, res) => {
         name,
         email,
         password: hash
-    })
+    });
 
     try {
         const savedUser = await user.save();
-        res.send(savedUser)
+        res.send(savedUser);
     } catch (error) {
-        res.status(400).send(error)
+        res.status(400).send(error);
     }
+});
 
-
-})
-
-// const tokenSecret = '12345';
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
-    // Find the user by email
-    const findedUser = await User.findOne({ email: email });
+    const findedUser = await User.findOne({ email: email })
     if (!findedUser) return res.status(400).send("Email Incorrect");
 
-    // Compare the provided password with the hashed password in the database
     const compare = await bcrypt.compare(password, findedUser.password);
     if (!compare) return res.status(400).send("Password Incorrect");
 
-    // Sign the JWT token with the user's id and email
-    const token = jwt.sign(
-        { id: findedUser._id},  // Include user id here
-        process.env.TOKEN_SECRET,
-        { expiresIn: '1h' }  // Optional: token expiration time
-    );
+    const token = jwt.sign({ email: findedUser.email }, process.env.TOKEN_SECRET)
+    res.header('token', token).send("Logged In Successfully");
+})
 
-    // Return the token in the response header and body
-    res.header('token', token).send({ token });
+router.post('/logout', (req, res) => {
+    res.clearCookie('token');
+    res.status(200).send({ message: 'Logged out successfully' });
 });
-
-
 
 router.post('/forget-password', async (req, res) => {
     const { email } = req.body;
@@ -76,9 +69,8 @@ router.post('/forget-password', async (req, res) => {
         await user.save();
 
         const transporter = nodemailer.createTransport({
-            service:"gmail",
+            service: "gmail",
             host: 'smtp.gmail.com',
-            // port: 587,
             auth: {
                 user: process.env.EMAIL,
                 pass: process.env.APP_PASSWORD
@@ -92,37 +84,29 @@ router.post('/forget-password', async (req, res) => {
                 email: "info@luxusrealestate.com"
             },
             subject: 'Password Reset',
-            text: `This Email is Sent by Real Estate Listing Site
-            Please click on the following link, or paste it into your browser to complete the process:\n\n
-            https://localhost:3000/reset-password/${token}\n\n
-            If you did not request this, please ignore this email and your password will remain unchanged.\n`
+            text: `Please click on the following link, or paste it into your browser to complete the process:\n\n
+      https://localhost:3000/reset-password/${token}\n\n
+      If you did not request this, please ignore this email.`
         };
 
         transporter.sendMail(mailOptions, (err, response) => {
             if (err) {
-                console.error('Error in sending email:', err); // Log detailed error
+                console.error('Error in sending email:', err);
                 return res.status(500).send('Error in sending email');
             }
-            console.log('Email sent successfully to:', user.email);
             res.status(200).send('Recovery email sent');
         });
     } catch (err) {
         res.status(500).send('Error on the server');
     }
-
-})
-
+});
 
 router.post('/reset-password/:token', async (req, res) => {
     const { token } = req.params;
     const { password } = req.body;
 
     try {
-        console.log('Received reset-password request');
-        console.log('Token:', token);
-        
         const decoded = jwt.verify(token, tokenSecret);
-        console.log('Decoded token:', decoded);
 
         const user = await User.findOne({
             _id: decoded.id,
@@ -130,37 +114,26 @@ router.post('/reset-password/:token', async (req, res) => {
             resetPasswordExpires: { $gt: Date.now() }
         });
 
-        if (!user) {
-            console.log('No user found or token expired');
-            return res.status(400).send('Password reset token is invalid or has expired');
-        }
-
-        console.log('User found:', user);
+        if (!user) return res.status(400).send('Password reset token is invalid or has expired');
 
         user.password = await bcrypt.hash(password, 10);
-        console.log('Password hashed');
-
         user.resetPasswordToken = undefined;
         user.resetPasswordExpires = undefined;
         await user.save();
-        console.log('User saved');
 
         res.status(200).send('Password has been reset');
     } catch (err) {
-        console.error('Error during password reset:', err);
         res.status(500).send('Error on the server');
     }
 });
 
-router.get('/dashboard',verifyToken, async (req, res) => {
-   try {
-    const properties = await Property.find({owner:req.user.userId});
-    res.json(properties);
-   } catch (error) {
-    res.status(400).json({
-        "message":"Error in fetching data"
-    })
-   }
-  });
+router.get('/dashboard', verifyToken, async (req, res) => {
+    try {
+        const properties = await Property.find({ owner: req.user.userId });
+        res.json(properties);
+    } catch (error) {
+        res.status(400).json({ message: "Error in fetching data" });
+    }
+});
 
 module.exports = router;
