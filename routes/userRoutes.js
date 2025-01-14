@@ -39,15 +39,36 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
-    const findedUser = await User.findOne({ email: email })
-    if (!findedUser) return res.status(400).send("Email Incorrect");
+    try {
+        // Find the user by email
+        const findedUser = await User.findOne({ email: email });
+        if (!findedUser) return res.status(400).send("Email Incorrect");
 
-    const compare = await bcrypt.compare(password, findedUser.password);
-    if (!compare) return res.status(400).send("Password Incorrect");
+        // Compare the provided password with the stored hash
+        const compare = await bcrypt.compare(password, findedUser.password);
+        if (!compare) return res.status(400).send("Password Incorrect");
 
-    const token = jwt.sign({ email: findedUser.email }, process.env.TOKEN_SECRET)
-    res.header('token', token).send("Logged In Successfully");
-})
+        // Generate the JWT token
+        const token = jwt.sign(
+            { email: findedUser.email, id: findedUser._id },
+            process.env.TOKEN_SECRET,
+            { expiresIn: "1h" } // Optional: Set token expiry
+        );
+
+        // Send the token as an HTTP-only cookie
+        res
+            .cookie('token', token, {
+                httpOnly: true, // Prevent access from client-side JavaScript
+                secure: process.env.NODE_ENV === "production", // Use HTTPS in production
+                sameSite: "strict", // Prevent CSRF attacks
+                maxAge: 3600000, // Optional: Cookie expiry (1 hour)
+            })
+            .send("Logged In Successfully");
+    } catch (error) {
+        console.error(error);
+        res.status(500).send("Internal Server Error");
+    }
+});
 
 router.post('/logout', (req, res) => {
     res.clearCookie('token');

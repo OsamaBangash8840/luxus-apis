@@ -8,15 +8,16 @@ const verifyToken = require('./verifyToken');
 router.post('/properties', verifyToken, async (req, res) => {
     const { title, description, price, location, type, buildYear, size, lotSize, amenities, images, mapLocation, reviews, category } = req.body;
 
+    console.log("Category from payload:", category); // Debug payload category
+
     try {
-        // Find the Category by name
-        const categoryObj = await Category.findOne({ name: category });
+        const categoryObj = await Category.findOne({ name: new RegExp(`^${category}$`, 'i') }); // Case-insensitive match
+        console.log("Category Object:", categoryObj); // Debug query result
 
         if (!categoryObj) {
             return res.status(400).json({ error: 'Category not found' });
         }
 
-        // Create the Property with category as ObjectId
         const property = new Property({
             title,
             description,
@@ -30,16 +31,17 @@ router.post('/properties', verifyToken, async (req, res) => {
             images,
             mapLocation,
             reviews,
-            category: categoryObj._id  // Assigning the ObjectId retrieved from the Category
+            category: categoryObj._id,
         });
 
         const newProperty = await property.save();
         res.status(201).json(newProperty);
     } catch (error) {
-        console.error('Error:', error);
+        console.error("Error:", error);
         res.status(500).json({ error: 'Server error' });
     }
 });
+
 
 router.get('/properties', async (req, res) => {
     try {
