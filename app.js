@@ -11,16 +11,24 @@ const PORT = 8000 || process.env.PORT
 const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
+const passport = require('./routes/googleRoutes');
+var cookieParser = require('cookie-parser')
 require('dotenv').config();
 
 const app = express();
 
 // Middleware
 app.use(express.json());
+app.use(cookieParser())
 app.use(cors({ exposedHeaders: ['Content-Length', 'Authorization', 'token'], origin: 'http://localhost:3000', credentials: true }));
 
 // Connect to database
 connectDB();
+app.use((req, res, next) => {
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  next();
+});
+
 
 // Routes
 app.use('/api', userRoutes);
@@ -29,6 +37,8 @@ app.use('/api', categoryRoutes);
 app.use('/api', tourRoutes);
 app.use('/api', reviewRoute);
 app.use('/api', contactForm)
+app.use(passport.initialize());
+
 
 
 app.get('/', (req, res) => {
@@ -71,6 +81,49 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
     res.status(500).json({ error: 'Failed to process uploaded files' });
   }
 });
+
+// Routes
+app.get(
+  "/auth/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+app.get(
+  "/auth/google/callback",
+  passport.authenticate("google", { failureRedirect: "/login" }),
+  (req, res) => {
+    const { user, token } = req.user;
+
+    // Set the token as a cookie
+    res
+      .cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 3600000, // 1 hour
+      })
+      .redirect("http://localhost:3000/profile"); // Redirect to frontend profile page
+  }
+);
+
+
+
+app.get("/profile", (req, res) => {
+  const token = req.cookies.token;
+
+  if (!token) return res.status(403).send("Access Denied");
+
+  jwt.verify(token, process.env.TOKEN_SECRET, (err, decoded) => {
+    if (err) return res.status(400).send("Invalid token");
+    res.send(decoded);
+  });
+});
+
+app.get("/logout", (req, res) => {
+  res.clearCookie("token");
+  res.send("Logged out successfully");
+});
+
 
 app.listen(PORT, () => {
   console.log("API IS RUNNING ON 8000")
