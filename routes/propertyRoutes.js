@@ -8,7 +8,9 @@ const verifyToken = require('./verifyToken');
 router.post('/properties', verifyToken, async (req, res) => {
     const { title, description, price, location, type, buildYear, size, lotSize, amenities, images, mapLocation, reviews, category } = req.body;
 
-    console.log("Category from payload:", category); // Debug payload category
+    console.log("Request Body:", req.body); // Log the entire request body
+    console.log("Category from payload:", category); // Check extracted category
+
 
     try {
         const categoryObj = await Category.findOne({ name: new RegExp(`^${category}$`, 'i') }); // Case-insensitive match
@@ -42,6 +44,50 @@ router.post('/properties', verifyToken, async (req, res) => {
     }
 });
 
+router.get('/properties/search', async (req, res) => {
+    try {
+        const { lng, lat, maxDistance = 50000, minPrice, maxPrice, minSize, maxSize, search } = req.query;
+
+        // Build the query object
+        const query = {};
+
+        // Add price range filter
+        if (minPrice && maxPrice) {
+            query.price = { $gte: minPrice, $lte: maxPrice };
+        }
+
+        // Add size range filter
+        if (minSize && maxSize) {
+            query.size = { $gte: minSize, $lte: maxSize };
+        }
+
+        // Add text search
+        if (search) {
+            query.$text = { $search: search };
+        }
+
+        // Geospatial search using $geoNear
+        const properties = await Property.aggregate([
+            {
+                $geoNear: {
+                    near: {
+                        type: "Point",
+                        coordinates: [parseFloat(lng), parseFloat(lat)],
+                    },
+                    distanceField: "distance",
+                    maxDistance: parseFloat(maxDistance),
+                    spherical: true,
+                    query,
+                },
+            },
+        ]);
+
+        res.status(200).json(properties);
+    } catch (error) {
+        console.error("Error in /properties/search route:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
 
 router.get('/properties', async (req, res) => {
     try {

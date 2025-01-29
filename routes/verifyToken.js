@@ -7,7 +7,7 @@ const verifyToken = (req, res, next) => {
     // Access the token from cookies
     const token = req.cookies.token;
 
-    if (!token) return res.status(403).send('Access denied.');
+    if (!token) return res.status(403).send('Access denied Please Log In.');
 
     // Verify the token
     const verified = jwt.verify(token, process.env.TOKEN_SECRET);

@@ -11,21 +11,20 @@ const categorySchema = new mongoose.Schema({
 });
 
 const propertySchema = new mongoose.Schema({
-    owner:{type:mongoose.Schema.Types.ObjectId,ref:"User"},
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     title: String,
     description: String,
     price: Number,
-    location: String,
+    location: {
+        type: { type: String, enum: ['Point'], required: true },
+        coordinates: { type: [Number], required: true }, // [longitude, latitude]
+    },
     type: String,
     buildYear: Number,
     size: String,
     lotSize: String,
     amenities: [String],
     images: [String],
-    mapLocation: {
-        lat: Number,
-        lng: Number
-    },
     reviews: [{
         name: String,
         date: Date,
@@ -36,8 +35,21 @@ const propertySchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Category',
         required: true
+    },
+    seller: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ['active', 'pending', 'sold'],
+        default: 'pending'
     }
 });
+
+// Create a 2dsphere index on the `location` field
+propertySchema.index({ location: "2dsphere" });
 
 const Category = mongoose.model('Category', categorySchema);
 const Property = mongoose.model('Property', propertySchema);

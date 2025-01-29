@@ -12,20 +12,30 @@ const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
 const passport = require('./routes/googleRoutes');
+const session = require('express-session')
 var cookieParser = require('cookie-parser')
 require('dotenv').config();
 
 const app = express();
+app.use(express.json());
+
+app.use(
+  session({
+    secret: process.env.TOKEN_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false }
+  })
+)
 
 // Middleware
-app.use(express.json());
 app.use(cookieParser())
 app.use(cors({ exposedHeaders: ['Content-Length', 'Authorization', 'token'], origin: 'http://localhost:3000', credentials: true }));
 
 // Connect to database
 connectDB();
 app.use((req, res, next) => {
-  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups", "Access-Control-Allow-Origin");
   next();
 });
 
@@ -72,7 +82,7 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
 
   try {
     const uploadedImageUrls = req.files.map((file) => ({
-      imageUrl: `/uploads/${file.filename}`,
+      imageUrl: `${req.protocol}://${req.get('host')}/uploads/${file.filename}`,
     }));
 
     res.status(200).json(uploadedImageUrls);
@@ -80,48 +90,6 @@ app.post('/api/upload', upload.array('files'), (req, res) => {
     console.error('Error processing files:', err);
     res.status(500).json({ error: 'Failed to process uploaded files' });
   }
-});
-
-// Routes
-app.get(
-  "/auth/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
-);
-
-app.get(
-  "/auth/google/callback",
-  passport.authenticate("google", { failureRedirect: "/login" }),
-  (req, res) => {
-    const { user, token } = req.user;
-
-    // Set the token as a cookie
-    res
-      .cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 3600000, // 1 hour
-      })
-      .redirect("http://localhost:3000/profile"); // Redirect to frontend profile page
-  }
-);
-
-
-
-app.get("/profile", (req, res) => {
-  const token = req.cookies.token;
-
-  if (!token) return res.status(403).send("Access Denied");
-
-  jwt.verify(token, process.env.TOKEN_SECRET, (err, decoded) => {
-    if (err) return res.status(400).send("Invalid token");
-    res.send(decoded);
-  });
-});
-
-app.get("/logout", (req, res) => {
-  res.clearCookie("token");
-  res.send("Logged out successfully");
 });
 
 
