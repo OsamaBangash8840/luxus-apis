@@ -33,7 +33,7 @@ module.exports.generateAuthToken = (user) => {
 
 module.exports.sendVerificationEmail = async (user) => {
     try {
-        const verificationToken = generateVerificationToken(user._id);
+        const verificationToken = this.generateVerificationToken(user._id);
 
         // Update user with verification token
         user.verificationToken = verificationToken;
